@@ -1,0 +1,15 @@
+plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
+android {
+    namespace 'com.kylins.amapnav.phone'; compileSdk 35
+    defaultConfig { applicationId 'com.kylins.amapnav'; minSdk 26; targetSdk 34; versionCode 4; versionName '0.4.0' }
+    buildFeatures { buildConfig true }
+    defaultConfig { buildConfigField 'boolean', 'SHOWCASE', (project.hasProperty('showcase')).toString() }
+    if(project.hasProperty('showcase')) { defaultConfig { applicationId 'com.kylins.amapnav.showcase' } }
+    sourceSets { main.java.srcDirs += '../common/src/main/java'; main.res.srcDirs += '../common/src/main/res' }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget='17' }
+}
+dependencies {
+    implementation 'com.google.android.gms:play-services-wearable:18.2.0'
+    implementation 'androidx.wear:wear-remote-interactions:1.0.0'
+}

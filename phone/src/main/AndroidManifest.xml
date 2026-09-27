@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <queries><package android:name="com.google.android.wearable.app.cn"/><package android:name="com.google.android.gms"/><package android:name="com.autonavi.minimap"/></queries>
+    <application android:label="麒麟步迹" android:icon="@drawable/ic_navigation" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:dataExtractionRules="@xml/no_backup" android:usesCleartextTraffic="false">
+        <activity android:name=".PhoneHome" android:exported="true" android:launchMode="singleTop">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+            <intent-filter><action android:name="android.intent.action.SEND"/><category android:name="android.intent.category.DEFAULT"/><data android:mimeType="text/plain"/></intent-filter>
+        </activity>
+        <service android:name=".PhoneInbox" android:exported="true">
+            <intent-filter><action android:name="com.google.android.gms.wearable.DATA_CHANGED"/><data android:scheme="wear" android:host="*" android:path="/kylins/v1/journal"/></intent-filter>
+        </service>
+    </application>
+</manifest>

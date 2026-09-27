@@ -1,0 +1,3 @@
+# Copy to amap.local.properties. Never commit your own key.
+# Android SDK key: bind com.kylins.amapnav and your signing certificate SHA1.
+AMAP_ANDROID_KEY=
