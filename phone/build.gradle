@@ -1,15 +1,27 @@
 plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
 android {
     namespace 'com.kylins.amapnav.phone'; compileSdk 35
-    defaultConfig { applicationId 'com.kylins.amapnav'; minSdk 26; targetSdk 34; versionCode 4; versionName '0.4.0' }
+    defaultConfig { applicationId 'com.kylins.amapnav'; minSdk 26; targetSdk 34; versionCode 5; versionName '0.5.0' }
+    defaultConfig {
+        def props = new Properties()
+        def localKey = rootProject.file('amap.local.properties')
+        if(localKey.exists()) localKey.withReader('UTF-8') { props.load(it) }
+        def key=System.getenv('AMAP_ANDROID_KEY') ?: props.getProperty('AMAP_ANDROID_KEY','').trim()
+        if(key && !(key ==~ /[A-Fa-f0-9]{32}/)) throw new GradleException('Invalid Android SDK key format')
+        manifestPlaceholders=[amapKey:key]
+        buildConfigField 'boolean','HAS_KEY',(!key.isEmpty()).toString()
+        buildConfigField 'boolean','SHOWCASE',(project.hasProperty('showcase')).toString()
+        ndk { abiFilters 'armeabi-v7a', 'arm64-v8a' }
+    }
     buildFeatures { buildConfig true }
-    defaultConfig { buildConfigField 'boolean', 'SHOWCASE', (project.hasProperty('showcase')).toString() }
-    if(project.hasProperty('showcase')) { defaultConfig { applicationId 'com.kylins.amapnav.showcase' } }
+    if(project.hasProperty('showcase')) { defaultConfig { applicationId 'com.kylins.amapnav.showcase'; manifestPlaceholders=[amapKey:'']; buildConfigField 'boolean','HAS_KEY','false' } }
     sourceSets { main.java.srcDirs += '../common/src/main/java'; main.res.srcDirs += '../common/src/main/res' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget='17' }
 }
 dependencies {
+    implementation 'com.amap.api:navi-3dmap:9.8.2_3dmap9.8.2'
+    implementation 'androidx.core:core:1.13.1'
     implementation 'com.google.android.gms:play-services-wearable:18.2.0'
     implementation 'androidx.wear:wear-remote-interactions:1.0.0'
 }

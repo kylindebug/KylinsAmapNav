@@ -5,6 +5,7 @@ import android.graphics.*
 import android.os.SystemClock
 import android.view.View
 import com.kylins.amapnav.core.GuidanceRules
+import com.kylins.amapnav.core.NavFrame
 import kotlin.math.*
 import java.text.SimpleDateFormat
 import java.util.*
