@@ -23,10 +23,20 @@ import com.kylins.amapnav.core.*
 object Inbox {
     private fun store(c: Context)=c.getSharedPreferences("inbox",Context.MODE_PRIVATE)
     fun pending(c: Context)=Journey.decode(store(c).getString("pending","").orEmpty())
-    @Synchronized fun accept(c: Context, raw: String) {
+    fun ended(c: Context,id: String)=id in store(c).getStringSet("ended",emptySet()).orEmpty()
+    fun phone(c: Context,id: String)=if(store(c).getString("last","")==id) store(c).getString("phone","").orEmpty() else ""
+    @Synchronized fun retire(c: Context,id: String) {
+        val recent=(store(c).getStringSet("ended",emptySet()).orEmpty().toList()+id).takeLast(30).toSet()
+        val edit=store(c).edit().putStringSet("ended",recent)
+        if(pending(c)?.id==id) edit.remove("pending")
+        edit.apply()
+        c.getSystemService(NotificationManager::class.java).cancel(52)
+        c.sendBroadcast(Intent("com.kylins.amapnav.INBOX_UPDATED").setPackage(c.packageName))
+    }
+    @Synchronized fun accept(c: Context, raw: String, node: String) {
         val route=Journey.decode(raw) ?: return
-        if(store(c).getString("last","")==route.id) return
-        if(!store(c).edit().putString("last",route.id).putString("pending",raw).commit()) return
+        if(node.isBlank() || ended(c,route.id) || store(c).getString("last","")==route.id) return
+        if(!store(c).edit().putString("last",route.id).putString("phone",node).putString("pending",raw).commit()) return
         Journal.note(c,"watch","received","手机路线已收到：${route.title}",route.id)
         c.sendBroadcast(Intent("com.kylins.amapnav.INBOX_UPDATED").setPackage(c.packageName))
         val manager=c.getSystemService(NotificationManager::class.java)
@@ -43,7 +53,20 @@ object Inbox {
     fun clear(c: Context) { store(c).edit().remove("pending").apply() }
 }
 class WatchInbox : WearableListenerService() {
-    override fun onDataChanged(events: DataEventBuffer) { for(e in events) if(e.type==DataEvent.TYPE_CHANGED && e.dataItem.uri.path==PairedLink.ROUTE) PairedLink.body(e.dataItem)?.let { Inbox.accept(this,it) } }
+    override fun onDataChanged(events: DataEventBuffer) {
+        for(e in events) if(e.type==DataEvent.TYPE_CHANGED) PairedLink.body(e.dataItem)?.let { raw->
+            when(e.dataItem.uri.path) {
+                PairedLink.ROUTE -> Inbox.accept(this,raw,e.dataItem.uri.host.orEmpty())
+                NavWire.TERMINAL -> {
+                    val frame=NavWire.decode(raw,android.os.SystemClock.elapsedRealtime())
+                    if(frame!=null && !frame.active) {
+                        Inbox.retire(this,frame.journeyId)
+                        Handler(Looper.getMainLooper()).post { NavigationEngine.terminal(raw) }
+                    }
+                }
+            }
+        }
+    }
 }
 class WatchHome : Activity() {
     private var selected: Journey?=null
@@ -74,7 +97,7 @@ class WatchHome : Activity() {
         super.onResume();if(BuildConfig.SHOWCASE) return;resumed=true;show()
         if(resumeActiveOnEntry && requestedId==null && NavigationEngine.frame.active) {resumeActiveOnEntry=false;openNavigation();return}
         resumeActiveOnEntry=false
-        PairedLink.fetch(this,PairedLink.ROUTE) { Inbox.accept(this,it);if(!isFinishing) {show();resolveEntry()} }
+        PairedLink.fetchFrom(this,PairedLink.ROUTE) { raw,node->Inbox.accept(this,raw,node);if(!isFinishing) {show();resolveEntry()} }
         resolveEntry()
     }
     override fun onPause() {resumed=false;handler.removeCallbacks(retry);super.onPause()}
@@ -102,7 +125,10 @@ class WatchHome : Activity() {
             setOnClickListener { action() }
         },LinearLayout.LayoutParams(-1,dp(44)).apply { bottomMargin=dp(8) }) }
         label("麒麟步迹",24f,Color.rgb(213,255,117));label("让路线留在手腕上",11f,Color.GRAY)
-        if(NavigationEngine.frame.active) button("返回导航",true) {openNavigation()}
+        if(NavigationEngine.frame.active) {
+            button("返回导航",true) {openNavigation()}
+            button("结束导航") {NavigationEngine.stop();show()}
+        }
         val pending=Inbox.pending(this)?.takeIf {requestedId==null || it.id==requestedId}
         if(pending!=null) {
             label(pending.title,18f)
@@ -110,30 +136,18 @@ class WatchHome : Activity() {
             else button(if(pending.mode=="walk") "开始步行" else "开始骑行",true) { selected=pending; authorize() }
         } else label(if(requestedId!=null) "正在接收手机路线…" else "从手机分享一条路线\n即可开始出发",13f,Color.LTGRAY)
         button("界面预览（不导航）") { startActivity(Intent(this,PreviewScreen::class.java)) }
-        button("刷新手机路线") { PairedLink.fetch(this,PairedLink.ROUTE) { Inbox.accept(this,it);show() } }
+        button("刷新手机路线") { PairedLink.fetchFrom(this,PairedLink.ROUTE) { raw,node->Inbox.accept(this,raw,node);show() } }
         if(checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
             button("开启路线通知") { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),23) }
-        label("导航中长按屏幕\n可选省电、常亮或结束",10f,Color.GRAY)
-        if(!BuildConfig.HAS_KEY) label("等待配置新包名的高德 Key",10f,Color.GRAY)
+        label("由手机定位与规划路线\n手表只显示指引；点击底部可结束",10f,Color.GRAY)
     }
     private fun authorize() {
         if(NavigationEngine.frame.active) {openNavigation();return}
-        if(!BuildConfig.HAS_KEY) { Toast.makeText(this,"请先配置新包名的 Key",Toast.LENGTH_LONG).show();return }
-        val prefs=getSharedPreferences("privacy",MODE_PRIVATE)
-        if(!prefs.getBoolean("accepted",false)) AlertDialog.Builder(this).setTitle("开始导航")
-            .setMessage("高德 SDK 将处理位置、目的地及必要设备信息；导航状态同步到配对手机本地日志。\n隐私说明：lbs.amap.com/pages/privacy/")
-            .setNegativeButton("取消",null).setPositiveButton("同意并继续") { _,_->prefs.edit().putBoolean("accepted",true).apply();permissions() }.show()
-        else permissions()
+        begin()
     }
-    private fun permissions() {
-        if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)
-            requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.POST_NOTIFICATIONS),22)
-        else begin()
-    }
-    override fun onRequestPermissionsResult(code:Int,permissions:Array<out String>,results:IntArray) { super.onRequestPermissionsResult(code,permissions,results)
-        if(code==22 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED) begin() }
     private fun begin() {
         val route=selected?.takeIf { it.fresh() } ?: run {Toast.makeText(this,"路线已过期，请从手机重发",Toast.LENGTH_LONG).show();return}
+        if(Inbox.ended(this,route.id)) {Toast.makeText(this,"导航已结束，请在手机重新开始",Toast.LENGTH_LONG).show();return}
         Inbox.clear(this)
         getSystemService(NotificationManager::class.java).cancel(52)
         requestedId=null

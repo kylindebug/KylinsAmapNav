@@ -40,8 +40,12 @@ object Journal {
 }
 
 object PairedLink {
-    const val ROUTE="/kylins/v1/route"
+    // v2 requires the phone navigation service; old watch builds must not start their own GPS.
+    const val ROUTE="/kylins/v2/route"
     const val JOURNAL="/kylins/v1/journal"
+    fun message(c: Context, node: String, path: String, value: String) {
+        Wearable.getMessageClient(c).sendMessage(node,path,value.toByteArray(Charsets.UTF_8))
+    }
     fun publish(c: Context, path: String, value: String, result: (Boolean)->Unit={}) {
         val data=PutDataMapRequest.create(path)
         data.dataMap.putString("body",value); data.dataMap.putString("revision",UUID.randomUUID().toString())
@@ -52,8 +56,11 @@ object PairedLink {
         if((item.data?.size ?: 0)>100000) null else DataMapItem.fromDataItem(item).dataMap.getString("body")
     } catch (_: Exception) { null }
     fun fetch(c: Context, path: String, action: (String)->Unit) {
+        fetchFrom(c,path) { body,_->action(body) }
+    }
+    fun fetchFrom(c: Context, path: String, action: (String,String)->Unit) {
         Wearable.getDataClient(c).dataItems.addOnSuccessListener { buffer ->
-            try { for(item in buffer) if(item.uri.path==path) body(item)?.let(action) } finally { buffer.release() }
+            try { for(item in buffer) if(item.uri.path==path) body(item)?.let {action(it,item.uri.host.orEmpty())} } finally { buffer.release() }
         }
     }
 }

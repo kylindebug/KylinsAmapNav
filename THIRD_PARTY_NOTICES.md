@@ -4,7 +4,7 @@ The MIT license in LICENSE applies to this project's original application source
 
 | Dependency | Use | License / terms |
 | --- | --- | --- |
-| AMap navi-3dmap 9.8.2_3dmap9.8.2 | Navigation, location and route geometry | Proprietary AMap SDK license and service terms; Maven POM identifies AMap Software License 1.0 |
+| AMap navi-3dmap 9.8.2_3dmap9.8.2 | Phone-only navigation, location and route geometry; not included in the watch APK | Proprietary AMap SDK license and service terms; Maven POM identifies AMap Software License 1.0 |
 | Google Play services Wearable 18.2.0 and transitive libraries | Paired-device Data Layer | Google Play services terms and dependency notices |
 | AndroidX Wear 1.3.0, Wear Ongoing 1.0.0, Wear Remote Interactions 1.0.0, Fragment 1.6.2 and transitive AndroidX libraries | Ambient lifecycle, notification, remote activity launch, Activity support | Apache License 2.0; see individual artifacts |
 | Kotlin 1.9.24 | Language runtime and build plugin | Apache License 2.0 |
